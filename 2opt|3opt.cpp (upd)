@@ -1,4 +1,14 @@
-#include <bits/stdc++.h>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <cmath>
+#include <chrono>
+#include <tuple>
+#include <algorithm>
+#include <sstream>
+#include <unordered_set>
+#include <iomanip>
+
 using namespace std;
 
 struct P {
@@ -18,6 +28,16 @@ float pathLen(const vector<P>& v) {
     return sum + v[n - 1].d(v[0]);
 }
 
+bool isValidCycle(const vector<P>& path) {
+    if (path.empty()) return false;
+    unordered_set<int> ids;
+    for (const auto& p : path) {
+        if (ids.count(p.id)) return false;
+        ids.insert(p.id);
+    }
+    return true;
+}
+
 float opt2(vector<P>& v, int maxIt) {
     int n = v.size();
     vector<vector<float>> d(n, vector<float>(n));
@@ -31,10 +51,13 @@ float opt2(vector<P>& v, int maxIt) {
 
     while (chg && it++ < maxIt) {
         chg = false;
-        for (int i = 0; i < n - 1; ++i) {
+        for (int i = 0; i < n; ++i) {
             for (int j = i + 2; j < n; ++j) {
-                float delta = -d[i][i+1] - d[j][(j+1)%n] + d[i][j] + d[i+1][(j+1)%n];
-                if (delta < 0) {
+                int next_i = (i + 1) % n;
+                int next_j = (j + 1) % n;
+                if (next_i == j || next_j == i) continue;
+                float delta = -d[i][next_i] - d[j][next_j] + d[i][j] + d[next_i][next_j];
+                if (delta < -1e-6) {
                     reverse(v.begin() + i + 1, v.begin() + j + 1);
                     res += delta;
                     chg = true;
@@ -61,49 +84,45 @@ float opt3(vector<P>& v, int maxIt) {
         for (int i = 0; i < n - 2; ++i) {
             for (int j = i + 1; j < n - 1; ++j) {
                 for (int k = j + 1; k < n; ++k) {
-                    vector<int> idx = {i+1, j+1, k+1, 0, n};
                     vector<tuple<int, int, int>> cases = {
-                        {idx[0], idx[1], idx[2]},
-                        {idx[0], idx[2], idx[1]},
-                        {idx[1], idx[0], idx[2]},
-                        {idx[1], idx[2], idx[0]},
-                        {idx[2], idx[0], idx[1]},
-                        {idx[2], idx[1], idx[0]}
+                        {i + 1, j, k},
+                        {i + 1, k, j},
+                        {j, i + 1, k},
+                        {j, k, i + 1},
+                        {k, i + 1, j},
+                        {k, j, i + 1}
                     };
 
-                    for (auto [a, b, c] : cases) {
+                    for (const auto& case_item : cases) {
+                        int a = get<0>(case_item);
+                        int b = get<1>(case_item);
+                        int c = get<2>(case_item);
+                        if (a >= b || b >= c || c > n) continue;
+
                         vector<P> tmp = v;
                         reverse(tmp.begin() + a, tmp.begin() + b);
                         reverse(tmp.begin() + b, tmp.begin() + c);
+
                         float len = pathLen(tmp);
-                        if (len < res) {
+                        if (len < res - 1e-6) {
                             v = tmp;
                             res = len;
                             chg = true;
+                            goto next_segment;
                         }
                     }
                 }
+                next_segment:;
             }
         }
     }
     return res;
 }
 
-bool checkCycle(const vector<P>& v) {
-    int n = v.size();
-    if (v[0].id != v[n - 1].id) return false;
-    vector<bool> seen(n, false);
-    for (const auto& p : v) {
-        if (p.id < 1 || p.id > n || seen[p.id - 1]) return false;
-        seen[p.id - 1] = true;
-    }
-    return true;
-}
-
 int main() {
-    ifstream fin("tsp_99_1.txt");
+    ifstream fin("tsp_100_1.txt");
     if (!fin) {
-        cout << "File error\n";
+        cerr << "Failed to open input file.\n";
         return 1;
     }
 
@@ -122,24 +141,26 @@ int main() {
     }
 
     int maxIt = 10000;
+    vector<P> pts2 = pts;
+    vector<P> pts3 = pts;
 
     auto t1 = chrono::high_resolution_clock::now();
-    float len2 = opt2(pts, maxIt);
+    float len2 = opt2(pts2, maxIt);
     auto t2 = chrono::high_resolution_clock::now();
     double tOpt2 = chrono::duration<double>(t2 - t1).count();
 
-    cout << fixed << setprecision(2);
-    cout << len2 << " " << 1 << "\n"; // Always outputs 1; could be fixed
-    for (auto& p : pts) cout << p.id << " ";
-    cout << "\n" << tOpt2 << "\n\n";
-
     auto t3 = chrono::high_resolution_clock::now();
-    float len3 = opt3(pts, maxIt);
+    float len3 = opt3(pts3, maxIt);
     auto t4 = chrono::high_resolution_clock::now();
     double tOpt3 = chrono::duration<double>(t4 - t3).count();
 
-    cout << len3 << " " << 1 << "\n";
-    for (auto& p : pts) cout << p.id << " ";
+    cout << fixed << setprecision(2);
+    cout << len2 << " " << (isValidCycle(pts2) ? 1 : 0) << "\n";
+    for (auto& p : pts2) cout << p.id << " ";
+    cout << "\n" << tOpt2 << "\n";
+
+    cout << len3 << " " << (isValidCycle(pts3) ? 1 : 0) << "\n";
+    for (auto& p : pts3) cout << p.id << " ";
     cout << "\n" << tOpt3 << "\n";
 
     return 0;
